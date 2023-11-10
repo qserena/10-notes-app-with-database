@@ -8,9 +8,12 @@ import { notesCollection, db } from './firebase'
 export default function App() {
 	const [notes, setNotes] = useState([])
 	const [currentNoteId, setCurrentNoteId] = useState('')
+	const [tempNoteText, setTempNoteText] = useState('')
 
 	const currentNote =
 		notes.find((note) => note.id === currentNoteId) || notes[0]
+
+	const sortedNotes = notes.sort((a, b) => b.updatedAt - a.updatedAt)
 
 	useEffect(() => {
 		const unsubscribe = onSnapshot(notesCollection, function (snapshot) {
@@ -30,10 +33,26 @@ export default function App() {
 		}
 	}, [notes])
 
+	useEffect(() => {
+		if (currentNote) {
+			setTempNoteText(currentNote.body)
+		}
+	}, [currentNote])
+
+	useEffect(() => {
+		const timeoutId = setTimeout(() => {
+			if (tempNoteText !== currentNote.body) {
+				updateNote(tempNoteText)
+			}
+		}, 500)
+		return () => clearTimeout(timeoutId)
+	}, [tempNoteText])
+
 	async function createNewNote() {
-		console.log('one')
 		const newNote = {
 			body: "# Type your markdown note's title here",
+			createdAt: Date.now(),
+			updatedAt: Date.now(),
 		}
 		const newNoteRef = await addDoc(notesCollection, newNote)
 		setCurrentNoteId(newNoteRef.id)
@@ -42,7 +61,11 @@ export default function App() {
 	async function updateNote(text) {
 		// Put the most recently-modified note at the top
 		const docRef = doc(db, 'notes', currentNoteId)
-		await setDoc(docRef, { body: text }, { merge: true })
+		await setDoc(
+			docRef,
+			{ body: text, updatedAt: Date.now() },
+			{ merge: true }
+		)
 	}
 
 	async function deleteNote(noteId) {
@@ -59,13 +82,16 @@ export default function App() {
 					className="split"
 				>
 					<Sidebar
-						notes={notes}
+						notes={sortedNotes}
 						currentNote={currentNote}
 						setCurrentNoteId={setCurrentNoteId}
 						newNote={createNewNote}
 						deleteNote={deleteNote}
 					/>
-					<Editor currentNote={currentNote} updateNote={updateNote} />
+					<Editor
+						tempNoteText={tempNoteText}
+						setTempNoteText={setTempNoteText}
+					/>
 				</Split>
 			) : (
 				<div className="no-notes">
